@@ -304,6 +304,270 @@ function InputField({
   );
 }
 
+type ChartDataPoint = {
+  year: number;
+  age: number;
+  bitcoinHoldings: number;
+  cumulativePurchases: number;
+  totalBitcoin: number;
+};
+
+type BitcoinChartProps = {
+  currentAge: number;
+  retirementAge: number;
+  initialBitcoin: number;
+  annualBuyAmount: number;
+  currentPrice: number;
+};
+
+function BitcoinChart({
+  currentAge,
+  retirementAge,
+  initialBitcoin,
+  annualBuyAmount,
+  currentPrice,
+}: BitcoinChartProps) {
+  const chartData = useMemo(() => {
+    const data: ChartDataPoint[] = [];
+    let cumulativePurchases = 0;
+
+    for (let age = currentAge; age <= retirementAge; age++) {
+      const year = age - currentAge;
+      const annualBitcoinPurchase =
+        annualBuyAmount > 0 ? annualBuyAmount / currentPrice : 0;
+
+      if (age > currentAge) {
+        cumulativePurchases += annualBitcoinPurchase;
+      }
+
+      const totalBitcoin = initialBitcoin + cumulativePurchases;
+
+      data.push({
+        year,
+        age,
+        bitcoinHoldings: initialBitcoin,
+        cumulativePurchases,
+        totalBitcoin,
+      });
+    }
+
+    return data;
+  }, [
+    currentAge,
+    retirementAge,
+    initialBitcoin,
+    annualBuyAmount,
+    currentPrice,
+  ]);
+
+  const maxBitcoin = Math.max(...chartData.map((d) => d.totalBitcoin));
+  const minBitcoin = Math.min(...chartData.map((d) => d.totalBitcoin));
+  const chartHeight = 200;
+  const chartWidth = 400;
+  const padding = { top: 20, right: 20, bottom: 40, left: 60 };
+
+  const getX = (year: number) => {
+    const totalYears = retirementAge - currentAge;
+    return (
+      padding.left +
+      (year / totalYears) * (chartWidth - padding.left - padding.right)
+    );
+  };
+
+  const getY = (bitcoin: number) => {
+    const range = maxBitcoin - minBitcoin || 1;
+    const normalized = (bitcoin - minBitcoin) / range;
+    return (
+      chartHeight -
+      padding.bottom -
+      normalized * (chartHeight - padding.top - padding.bottom)
+    );
+  };
+
+  const pathData = chartData
+    .map((point, index) => {
+      const x = getX(point.year);
+      const y = getY(point.totalBitcoin);
+      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="w-full h-64 flex items-center justify-center bg-[var(--app-gray)] rounded-lg p-4">
+      <svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        className="max-w-full max-h-full"
+      >
+        {/* Grid lines */}
+        <defs>
+          <pattern
+            id="grid"
+            width="40"
+            height="40"
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d="M 40 0 L 0 0 0 40"
+              fill="none"
+              stroke="var(--app-foreground-muted)"
+              strokeWidth="0.5"
+              opacity="0.3"
+            />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        {/* Y-axis */}
+        <line
+          x1={padding.left}
+          y1={padding.top}
+          x2={padding.left}
+          y2={chartHeight - padding.bottom}
+          stroke="var(--app-foreground-muted)"
+          strokeWidth="1"
+        />
+
+        {/* X-axis */}
+        <line
+          x1={padding.left}
+          y1={chartHeight - padding.bottom}
+          x2={chartWidth - padding.right}
+          y2={chartHeight - padding.bottom}
+          stroke="var(--app-foreground-muted)"
+          strokeWidth="1"
+        />
+
+        {/* Chart line */}
+        <path
+          d={pathData}
+          fill="none"
+          stroke="#f97316"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* Data points */}
+        {chartData.map((point, index) => (
+          <g key={index}>
+            <circle
+              cx={getX(point.year)}
+              cy={getY(point.totalBitcoin)}
+              r="4"
+              fill="#f97316"
+              stroke="white"
+              strokeWidth="2"
+            />
+
+            {/* Age labels on X-axis */}
+            <text
+              x={getX(point.year)}
+              y={chartHeight - padding.bottom + 15}
+              textAnchor="middle"
+              fontSize="10"
+              fill="var(--app-foreground-muted)"
+            >
+              {point.age}
+            </text>
+          </g>
+        ))}
+
+        {/* Y-axis labels */}
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+          const value = minBitcoin + (maxBitcoin - minBitcoin) * ratio;
+          const y =
+            chartHeight -
+            padding.bottom -
+            ratio * (chartHeight - padding.top - padding.bottom);
+
+          return (
+            <g key={ratio}>
+              <text
+                x={padding.left - 10}
+                y={y + 3}
+                textAnchor="end"
+                fontSize="10"
+                fill="var(--app-foreground-muted)"
+              >
+                ₿{value.toFixed(2)}
+              </text>
+              <line
+                x1={padding.left - 5}
+                y1={y}
+                x2={padding.left}
+                y2={y}
+                stroke="var(--app-foreground-muted)"
+                strokeWidth="1"
+              />
+            </g>
+          );
+        })}
+
+        {/* Chart title */}
+        <text
+          x={chartWidth / 2}
+          y={15}
+          textAnchor="middle"
+          fontSize="12"
+          fontWeight="bold"
+          fill="var(--app-foreground)"
+        >
+          Bitcoin Accumulation Over Time
+        </text>
+
+        {/* X-axis label */}
+        <text
+          x={chartWidth / 2}
+          y={chartHeight - 5}
+          textAnchor="middle"
+          fontSize="10"
+          fill="var(--app-foreground-muted)"
+        >
+          Age
+        </text>
+
+        {/* Y-axis label */}
+        <text
+          x={15}
+          y={chartHeight / 2}
+          textAnchor="middle"
+          fontSize="10"
+          fill="var(--app-foreground-muted)"
+          transform={`rotate(-90, 15, ${chartHeight / 2})`}
+        >
+          Bitcoin Holdings (₿)
+        </text>
+
+        {/* Retirement age marker */}
+        <g>
+          <line
+            x1={getX(retirementAge - currentAge)}
+            y1={padding.top}
+            x2={getX(retirementAge - currentAge)}
+            y2={chartHeight - padding.bottom}
+            stroke="#ef4444"
+            strokeWidth="2"
+            strokeDasharray="5,5"
+            opacity="0.7"
+          />
+          <text
+            x={getX(retirementAge - currentAge)}
+            y={padding.top - 5}
+            textAnchor="middle"
+            fontSize="10"
+            fill="#ef4444"
+            fontWeight="bold"
+          >
+            Retirement
+          </text>
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 export function BitcoinCalculator() {
   const [currentAge, setCurrentAge] = useState("30");
   const [lifeExpectancy, setLifeExpectancy] = useState("86");
@@ -536,23 +800,29 @@ export function BitcoinCalculator() {
         </div>
 
         {/* Chart/Table View */}
-        <div className="bg-[var(--app-gray)] rounded-lg p-4 h-64 flex items-center justify-center">
-          <div className="text-center text-[var(--app-foreground-muted)]">
-            <Icon
-              name={activeView}
-              size="lg"
-              className="mx-auto mb-2 text-orange-500"
-            />
-            <p className="text-sm">
-              {activeView === "chart"
-                ? "Bitcoin Growth Chart"
-                : "Retirement Planning Table"}
-            </p>
-            <p className="text-xs mt-1">
-              Visualization showing your Bitcoin journey to retirement
-            </p>
+        {activeView === "chart" ? (
+          <BitcoinChart
+            currentAge={parseInt(currentAge) || 30}
+            retirementAge={calculations.retirementAge}
+            initialBitcoin={parseFloat(bitcoinHolding) || 0}
+            annualBuyAmount={parseFloat(annualBuy) || 0}
+            currentPrice={parseFloat(currentPrice)}
+          />
+        ) : (
+          <div className="bg-[var(--app-gray)] rounded-lg p-4 h-64 flex items-center justify-center">
+            <div className="text-center text-[var(--app-foreground-muted)]">
+              <Icon
+                name="table"
+                size="lg"
+                className="mx-auto mb-2 text-orange-500"
+              />
+              <p className="text-sm">Retirement Planning Table</p>
+              <p className="text-xs mt-1">
+                Detailed year-by-year breakdown coming next
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </Card>
 
       {/* Optional Transaction Card */}
