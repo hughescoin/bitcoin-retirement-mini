@@ -313,6 +313,7 @@ type ChartDataPoint = {
   bitcoinPrice: number;
   annualBudgetNeeded: number;
   isRetired: boolean;
+  totalFiatValue: number;
 };
 
 type BitcoinChartProps = {
@@ -334,6 +335,7 @@ type CalculationResults = {
   monthlyBudget: number;
   canRetire: boolean;
   chartData: ChartDataPoint[];
+  totalFiatValue: number;
 };
 
 // Helper functions for calculations
@@ -345,31 +347,24 @@ const getInflationFactor = (inflationRate: number): number => {
   return 1 + inflationRate / 100;
 };
 
-const calculateBitcoinWillNeedOverLife = (
+// Calculate total fiat needed for all future years (inflation-adjusted)
+const calculateFiatWillNeedOverLife = (
   age: number,
   lifeExpectancy: number,
   annualBudget: number,
-  currentPrice: number,
-  priceGrowth: number,
   inflation: number,
 ): number => {
-  const growthFactor = getGrowthFactor(priceGrowth);
   const inflationFactor = getInflationFactor(inflation);
-  let totalBitcoinNeeded = 0;
-  let indexedAnnualBudget = annualBudget;
-  let bitcoinPrice = currentPrice;
+  let totalFiatNeeded = 0;
 
   for (let currentAge = age; currentAge <= lifeExpectancy; currentAge++) {
     const yearsFromStart = currentAge - age;
-    bitcoinPrice = currentPrice * Math.pow(growthFactor, yearsFromStart);
-    indexedAnnualBudget =
+    const indexedAnnualBudget =
       annualBudget * Math.pow(inflationFactor, yearsFromStart);
-
-    const btcNeededForTheYear = indexedAnnualBudget / bitcoinPrice;
-    totalBitcoinNeeded += btcNeededForTheYear;
+    totalFiatNeeded += indexedAnnualBudget;
   }
 
-  return totalBitcoinNeeded;
+  return totalFiatNeeded;
 };
 
 const calculateOptimalRetirement = (
@@ -391,6 +386,7 @@ const calculateOptimalRetirement = (
   let canRetire = false;
   let bitcoinPriceAtRetirement = currentPrice;
   let annualBudgetAtRetirement = retirementIncome;
+  let totalFiatValueAtRetirement = 0;
 
   const chartData: ChartDataPoint[] = [];
 
@@ -401,22 +397,24 @@ const calculateOptimalRetirement = (
     const indexedAnnualBudget =
       retirementIncome * Math.pow(inflationFactor, yearsFromStart);
 
-    // Test if we can retire at this age
+    // Calculate current total fiat value of Bitcoin holdings
+    const accumulatedSavingsFiat = accumulatedSavingsBitcoin * bitcoinPrice;
+
+    // Test if we can retire at this age (fiat-based comparison)
     if (!canRetire) {
-      const totalBitcoinWillNeedInLifetime = calculateBitcoinWillNeedOverLife(
+      const pendingSavingsFiat = calculateFiatWillNeedOverLife(
         age,
         lifeExpectancy,
         retirementIncome,
-        currentPrice,
-        priceGrowth,
         inflation,
       );
 
-      if (totalBitcoinWillNeedInLifetime <= accumulatedSavingsBitcoin) {
+      if (pendingSavingsFiat <= accumulatedSavingsFiat) {
         canRetire = true;
         retirementAge = age;
         bitcoinPriceAtRetirement = bitcoinPrice;
         annualBudgetAtRetirement = indexedAnnualBudget;
+        totalFiatValueAtRetirement = accumulatedSavingsFiat;
       }
     }
 
@@ -430,6 +428,7 @@ const calculateOptimalRetirement = (
       bitcoinPrice: bitcoinPrice,
       annualBudgetNeeded: indexedAnnualBudget,
       isRetired: canRetire && age >= retirementAge,
+      totalFiatValue: accumulatedSavingsFiat,
     });
 
     // If not yet retired, continue buying Bitcoin
@@ -458,6 +457,7 @@ const calculateOptimalRetirement = (
     monthlyBudget,
     canRetire,
     chartData,
+    totalFiatValue: totalFiatValueAtRetirement,
   };
 };
 
@@ -764,6 +764,7 @@ export function BitcoinCalculator() {
       annualBudget: results.annualBudget.toFixed(0),
       monthlyBudget: results.monthlyBudget.toFixed(0),
       canRetire: results.canRetire,
+      totalFiatValue: results.totalFiatValue.toFixed(0),
     };
   }, [
     currentAge,
@@ -874,18 +875,6 @@ export function BitcoinCalculator() {
           </div>
           <div className="space-y-2">
             <p className="text-sm text-[var(--app-foreground-muted)]">
-              Annual Retirement Budget:
-            </p>
-            <p className="text-xl font-bold text-[var(--app-foreground)]">
-              ₿
-              {(
-                parseFloat(calculations.annualBudget) /
-                parseFloat(calculations.futurePrice)
-              ).toFixed(8)}
-            </p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm text-[var(--app-foreground-muted)]">
               Bitcoin price when you retire:
             </p>
             <p className="text-xl font-bold text-[var(--app-foreground)]">
@@ -894,14 +883,18 @@ export function BitcoinCalculator() {
           </div>
           <div className="space-y-2">
             <p className="text-sm text-[var(--app-foreground-muted)]">
-              Monthly Retirement Budget:
+              Total Portfolio Value:
             </p>
             <p className="text-xl font-bold text-[var(--app-foreground)]">
-              ₿
-              {(
-                parseFloat(calculations.monthlyBudget) /
-                parseFloat(calculations.futurePrice)
-              ).toFixed(8)}
+              ${parseFloat(calculations.totalFiatValue).toLocaleString()}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-[var(--app-foreground-muted)]">
+              Annual Retirement Budget:
+            </p>
+            <p className="text-xl font-bold text-[var(--app-foreground)]">
+              ${parseFloat(calculations.annualBudget).toLocaleString()}
             </p>
           </div>
         </div>
@@ -910,7 +903,7 @@ export function BitcoinCalculator() {
         <div className="mb-4 p-3 rounded-lg bg-[var(--app-accent-light)]">
           <p className="text-sm font-medium text-[var(--app-foreground)]">
             {calculations.canRetire
-              ? `🎉 You can retire at age ${calculations.retirementAge}!`
+              ? `🎉 You can retire at age ${calculations.retirementAge}! Your Bitcoin will be worth $${parseFloat(calculations.totalFiatValue).toLocaleString()}.`
               : "❌ Cannot retire with current plan. Try increasing your Bitcoin purchases or reducing retirement income."}
           </p>
         </div>
