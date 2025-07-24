@@ -678,28 +678,16 @@ function BitcoinChart({
 
         {/* Retirement age marker */}
         {calculationResults.canRetire && (
-          <g>
-            <line
-              x1={getX(calculationResults.retirementAge - currentAge)}
-              y1={padding.top}
-              x2={getX(calculationResults.retirementAge - currentAge)}
-              y2={chartHeight - padding.bottom}
-              stroke="#ef4444"
-              strokeWidth="2"
-              strokeDasharray="5,5"
-              opacity="0.7"
-            />
-            <text
-              x={getX(calculationResults.retirementAge - currentAge)}
-              y={padding.top - 5}
-              textAnchor="middle"
-              fontSize="10"
-              fill="#ef4444"
-              fontWeight="bold"
-            >
-              Retirement at {calculationResults.retirementAge}
-            </text>
-          </g>
+          <line
+            x1={getX(calculationResults.retirementAge - currentAge)}
+            y1={padding.top}
+            x2={getX(calculationResults.retirementAge - currentAge)}
+            y2={chartHeight - padding.bottom}
+            stroke="#ef4444"
+            strokeWidth="2"
+            strokeDasharray="5,5"
+            opacity="0.7"
+          />
         )}
       </svg>
     </div>
