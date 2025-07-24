@@ -310,56 +310,190 @@ type ChartDataPoint = {
   bitcoinHoldings: number;
   cumulativePurchases: number;
   totalBitcoin: number;
+  bitcoinPrice: number;
+  annualBudgetNeeded: number;
+  isRetired: boolean;
 };
 
 type BitcoinChartProps = {
   currentAge: number;
-  retirementAge: number;
+  lifeExpectancy: number;
   initialBitcoin: number;
   annualBuyAmount: number;
   currentPrice: number;
+  priceGrowth: number;
+  inflation: number;
+  retirementIncome: number;
+};
+
+type CalculationResults = {
+  retirementAge: number;
+  totalBTC: number;
+  futurePrice: number;
+  annualBudget: number;
+  monthlyBudget: number;
+  canRetire: boolean;
+  chartData: ChartDataPoint[];
+};
+
+// Helper functions for calculations
+const getGrowthFactor = (annualPriceGrowth: number): number => {
+  return 1 + annualPriceGrowth / 100;
+};
+
+const getInflationFactor = (inflationRate: number): number => {
+  return 1 + inflationRate / 100;
+};
+
+const calculateBitcoinWillNeedOverLife = (
+  age: number,
+  lifeExpectancy: number,
+  annualBudget: number,
+  currentPrice: number,
+  priceGrowth: number,
+  inflation: number,
+): number => {
+  const growthFactor = getGrowthFactor(priceGrowth);
+  const inflationFactor = getInflationFactor(inflation);
+  let totalBitcoinNeeded = 0;
+  let indexedAnnualBudget = annualBudget;
+  let bitcoinPrice = currentPrice;
+
+  for (let currentAge = age; currentAge <= lifeExpectancy; currentAge++) {
+    const yearsFromStart = currentAge - age;
+    bitcoinPrice = currentPrice * Math.pow(growthFactor, yearsFromStart);
+    indexedAnnualBudget =
+      annualBudget * Math.pow(inflationFactor, yearsFromStart);
+
+    const btcNeededForTheYear = indexedAnnualBudget / bitcoinPrice;
+    totalBitcoinNeeded += btcNeededForTheYear;
+  }
+
+  return totalBitcoinNeeded;
+};
+
+const calculateOptimalRetirement = (
+  currentAge: number,
+  lifeExpectancy: number,
+  initialBitcoin: number,
+  annualBuyAmount: number,
+  currentPrice: number,
+  priceGrowth: number,
+  inflation: number,
+  retirementIncome: number,
+): CalculationResults => {
+  const growthFactor = getGrowthFactor(priceGrowth);
+  const inflationFactor = getInflationFactor(inflation);
+
+  let accumulatedSavingsBitcoin = initialBitcoin;
+  let indexedAnnualBuyInFiat = annualBuyAmount;
+  let retirementAge = lifeExpectancy;
+  let canRetire = false;
+  let bitcoinPriceAtRetirement = currentPrice;
+  let annualBudgetAtRetirement = retirementIncome;
+
+  const chartData: ChartDataPoint[] = [];
+
+  // Iterate year by year to find retirement age
+  for (let age = currentAge; age <= lifeExpectancy; age++) {
+    const yearsFromStart = age - currentAge;
+    const bitcoinPrice = currentPrice * Math.pow(growthFactor, yearsFromStart);
+    const indexedAnnualBudget =
+      retirementIncome * Math.pow(inflationFactor, yearsFromStart);
+
+    // Test if we can retire at this age
+    if (!canRetire) {
+      const totalBitcoinWillNeedInLifetime = calculateBitcoinWillNeedOverLife(
+        age,
+        lifeExpectancy,
+        retirementIncome,
+        currentPrice,
+        priceGrowth,
+        inflation,
+      );
+
+      if (totalBitcoinWillNeedInLifetime <= accumulatedSavingsBitcoin) {
+        canRetire = true;
+        retirementAge = age;
+        bitcoinPriceAtRetirement = bitcoinPrice;
+        annualBudgetAtRetirement = indexedAnnualBudget;
+      }
+    }
+
+    // Add to chart data
+    chartData.push({
+      year: yearsFromStart,
+      age: age,
+      bitcoinHoldings: initialBitcoin,
+      cumulativePurchases: accumulatedSavingsBitcoin - initialBitcoin,
+      totalBitcoin: accumulatedSavingsBitcoin,
+      bitcoinPrice: bitcoinPrice,
+      annualBudgetNeeded: indexedAnnualBudget,
+      isRetired: canRetire && age >= retirementAge,
+    });
+
+    // If not yet retired, continue buying Bitcoin
+    if (!canRetire || age < retirementAge) {
+      if (age > currentAge) {
+        // Don't buy in the starting year
+        indexedAnnualBuyInFiat =
+          annualBuyAmount * Math.pow(inflationFactor, yearsFromStart);
+        const bitcoinToBuy = indexedAnnualBuyInFiat / bitcoinPrice;
+        accumulatedSavingsBitcoin += bitcoinToBuy;
+      }
+    } else {
+      // During retirement, sell Bitcoin for living expenses
+      const bitcoinToSell = indexedAnnualBudget / bitcoinPrice;
+      accumulatedSavingsBitcoin -= bitcoinToSell;
+    }
+  }
+
+  const monthlyBudget = annualBudgetAtRetirement / 12;
+
+  return {
+    retirementAge,
+    totalBTC: accumulatedSavingsBitcoin,
+    futurePrice: bitcoinPriceAtRetirement,
+    annualBudget: annualBudgetAtRetirement,
+    monthlyBudget,
+    canRetire,
+    chartData,
+  };
 };
 
 function BitcoinChart({
   currentAge,
-  retirementAge,
+  lifeExpectancy,
   initialBitcoin,
   annualBuyAmount,
   currentPrice,
+  priceGrowth,
+  inflation,
+  retirementIncome,
 }: BitcoinChartProps) {
-  const chartData = useMemo(() => {
-    const data: ChartDataPoint[] = [];
-    let cumulativePurchases = 0;
-
-    for (let age = currentAge; age <= retirementAge; age++) {
-      const year = age - currentAge;
-      const annualBitcoinPurchase =
-        annualBuyAmount > 0 ? annualBuyAmount / currentPrice : 0;
-
-      if (age > currentAge) {
-        cumulativePurchases += annualBitcoinPurchase;
-      }
-
-      const totalBitcoin = initialBitcoin + cumulativePurchases;
-
-      data.push({
-        year,
-        age,
-        bitcoinHoldings: initialBitcoin,
-        cumulativePurchases,
-        totalBitcoin,
-      });
-    }
-
-    return data;
+  const calculationResults = useMemo(() => {
+    return calculateOptimalRetirement(
+      currentAge,
+      lifeExpectancy,
+      initialBitcoin,
+      annualBuyAmount,
+      currentPrice,
+      priceGrowth,
+      inflation,
+      retirementIncome,
+    );
   }, [
     currentAge,
-    retirementAge,
+    lifeExpectancy,
     initialBitcoin,
     annualBuyAmount,
     currentPrice,
+    priceGrowth,
+    inflation,
+    retirementIncome,
   ]);
 
+  const chartData = calculationResults.chartData;
   const maxBitcoin = Math.max(...chartData.map((d) => d.totalBitcoin));
   const minBitcoin = Math.min(...chartData.map((d) => d.totalBitcoin));
   const chartHeight = 200;
@@ -367,7 +501,7 @@ function BitcoinChart({
   const padding = { top: 20, right: 20, bottom: 40, left: 60 };
 
   const getX = (year: number) => {
-    const totalYears = retirementAge - currentAge;
+    const totalYears = lifeExpectancy - currentAge;
     return (
       padding.left +
       (year / totalYears) * (chartWidth - padding.left - padding.right)
@@ -456,21 +590,23 @@ function BitcoinChart({
               cx={getX(point.year)}
               cy={getY(point.totalBitcoin)}
               r="4"
-              fill="#f97316"
+              fill={point.isRetired ? "#ef4444" : "#f97316"}
               stroke="white"
               strokeWidth="2"
             />
 
-            {/* Age labels on X-axis */}
-            <text
-              x={getX(point.year)}
-              y={chartHeight - padding.bottom + 15}
-              textAnchor="middle"
-              fontSize="10"
-              fill="var(--app-foreground-muted)"
-            >
-              {point.age}
-            </text>
+            {/* Age labels on X-axis - show every few years to avoid crowding */}
+            {index % Math.max(1, Math.floor(chartData.length / 8)) === 0 && (
+              <text
+                x={getX(point.year)}
+                y={chartHeight - padding.bottom + 15}
+                textAnchor="middle"
+                fontSize="10"
+                fill="var(--app-foreground-muted)"
+              >
+                {point.age}
+              </text>
+            )}
           </g>
         ))}
 
@@ -491,7 +627,7 @@ function BitcoinChart({
                 fontSize="10"
                 fill="var(--app-foreground-muted)"
               >
-                ₿{value.toFixed(2)}
+                ₿{value.toFixed(3)}
               </text>
               <line
                 x1={padding.left - 5}
@@ -541,28 +677,30 @@ function BitcoinChart({
         </text>
 
         {/* Retirement age marker */}
-        <g>
-          <line
-            x1={getX(retirementAge - currentAge)}
-            y1={padding.top}
-            x2={getX(retirementAge - currentAge)}
-            y2={chartHeight - padding.bottom}
-            stroke="#ef4444"
-            strokeWidth="2"
-            strokeDasharray="5,5"
-            opacity="0.7"
-          />
-          <text
-            x={getX(retirementAge - currentAge)}
-            y={padding.top - 5}
-            textAnchor="middle"
-            fontSize="10"
-            fill="#ef4444"
-            fontWeight="bold"
-          >
-            Retirement
-          </text>
-        </g>
+        {calculationResults.canRetire && (
+          <g>
+            <line
+              x1={getX(calculationResults.retirementAge - currentAge)}
+              y1={padding.top}
+              x2={getX(calculationResults.retirementAge - currentAge)}
+              y2={chartHeight - padding.bottom}
+              stroke="#ef4444"
+              strokeWidth="2"
+              strokeDasharray="5,5"
+              opacity="0.7"
+            />
+            <text
+              x={getX(calculationResults.retirementAge - currentAge)}
+              y={padding.top - 5}
+              textAnchor="middle"
+              fontSize="10"
+              fill="#ef4444"
+              fontWeight="bold"
+            >
+              Retirement at {calculationResults.retirementAge}
+            </text>
+          </g>
+        )}
       </svg>
     </div>
   );
@@ -600,6 +738,7 @@ export function BitcoinCalculator() {
 
   const calculations = useMemo(() => {
     const age = parseInt(currentAge) || 30;
+    const expectancy = parseInt(lifeExpectancy) || 86;
     const btcAmount = parseFloat(bitcoinHolding) || 0;
     const buyAmount = parseFloat(annualBuy) || 0;
     const growth = parseFloat(priceGrowth) || 20;
@@ -607,40 +746,28 @@ export function BitcoinCalculator() {
     const income = parseFloat(retirementIncome) || 120000;
     const price = parseFloat(currentPrice) || 118328;
 
-    const retirementAge = 47; // Based on the image example
-    const yearsToRetirement = Math.max(0, retirementAge - age);
-
-    // Calculate future Bitcoin holdings
-    const additionalBTC =
-      buyAmount > 0 ? (buyAmount / price) * yearsToRetirement : 0;
-    const totalBTC = btcAmount + additionalBTC;
-
-    // Calculate Bitcoin price at retirement
-    const futurePrice = price * Math.pow(1 + growth / 100, yearsToRetirement);
-
-    // Calculate total savings value
-    const totalValue = totalBTC * futurePrice;
-
-    // Calculate retirement budgets (adjusted for inflation)
-    const inflationMultiplier = Math.pow(
-      1 + inflationRate / 100,
-      yearsToRetirement,
+    const results = calculateOptimalRetirement(
+      age,
+      expectancy,
+      btcAmount,
+      buyAmount,
+      price,
+      growth,
+      inflationRate,
+      income,
     );
-    const adjustedIncome = income * inflationMultiplier;
-    const annualBudget = adjustedIncome;
-    const monthlyBudget = annualBudget / 12;
 
     return {
-      retirementAge,
-      yearsToRetirement,
-      totalBTC: totalBTC.toFixed(8),
-      futurePrice: futurePrice.toFixed(2),
-      totalValue: totalValue.toFixed(0),
-      annualBudget: annualBudget.toFixed(0),
-      monthlyBudget: monthlyBudget.toFixed(0),
+      retirementAge: results.retirementAge,
+      totalBTC: results.totalBTC.toFixed(8),
+      futurePrice: results.futurePrice.toFixed(2),
+      annualBudget: results.annualBudget.toFixed(0),
+      monthlyBudget: results.monthlyBudget.toFixed(0),
+      canRetire: results.canRetire,
     };
   }, [
     currentAge,
+    lifeExpectancy,
     bitcoinHolding,
     annualBuy,
     priceGrowth,
@@ -779,6 +906,15 @@ export function BitcoinCalculator() {
           </div>
         </div>
 
+        {/* Retirement Status */}
+        <div className="mb-4 p-3 rounded-lg bg-[var(--app-accent-light)]">
+          <p className="text-sm font-medium text-[var(--app-foreground)]">
+            {calculations.canRetire
+              ? `🎉 You can retire at age ${calculations.retirementAge}!`
+              : "❌ Cannot retire with current plan. Try increasing your Bitcoin purchases or reducing retirement income."}
+          </p>
+        </div>
+
         {/* View Toggle */}
         <div className="flex space-x-2 mb-4">
           <Button
@@ -803,10 +939,13 @@ export function BitcoinCalculator() {
         {activeView === "chart" ? (
           <BitcoinChart
             currentAge={parseInt(currentAge) || 30}
-            retirementAge={calculations.retirementAge}
+            lifeExpectancy={parseInt(lifeExpectancy) || 86}
             initialBitcoin={parseFloat(bitcoinHolding) || 0}
             annualBuyAmount={parseFloat(annualBuy) || 0}
             currentPrice={parseFloat(currentPrice)}
+            priceGrowth={parseFloat(priceGrowth) || 20}
+            inflation={parseFloat(inflation) || 2}
+            retirementIncome={parseFloat(retirementIncome) || 120000}
           />
         ) : (
           <div className="bg-[var(--app-gray)] rounded-lg p-4 h-64 flex items-center justify-center">
