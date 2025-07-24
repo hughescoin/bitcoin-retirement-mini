@@ -694,6 +694,206 @@ function BitcoinChart({
   );
 }
 
+function BitcoinTable({
+  currentAge,
+  lifeExpectancy,
+  initialBitcoin,
+  annualBuyAmount,
+  currentPrice,
+  priceGrowth,
+  inflation,
+  retirementIncome,
+}: BitcoinChartProps) {
+  const calculationResults = useMemo(() => {
+    return calculateOptimalRetirement(
+      currentAge,
+      lifeExpectancy,
+      initialBitcoin,
+      annualBuyAmount,
+      currentPrice,
+      priceGrowth,
+      inflation,
+      retirementIncome,
+    );
+  }, [
+    currentAge,
+    lifeExpectancy,
+    initialBitcoin,
+    annualBuyAmount,
+    currentPrice,
+    priceGrowth,
+    inflation,
+    retirementIncome,
+  ]);
+
+  const tableData = calculationResults.chartData;
+
+  return (
+    <div className="w-full bg-[var(--app-gray)] rounded-lg p-4">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-[var(--app-foreground)] mb-2">
+          Year-by-Year Bitcoin Retirement Plan
+        </h3>
+        <p className="text-sm text-[var(--app-foreground-muted)]">
+          Track your Bitcoin accumulation journey from age {currentAge} to{" "}
+          {lifeExpectancy}
+        </p>
+      </div>
+
+      {/* Mobile-friendly scrollable table */}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px] text-sm">
+          <thead>
+            <tr className="border-b border-[var(--app-card-border)]">
+              <th className="text-left py-3 px-2 font-medium text-[var(--app-foreground)]">
+                Age
+              </th>
+              <th className="text-left py-3 px-2 font-medium text-[var(--app-foreground)]">
+                Phase
+              </th>
+              <th className="text-right py-3 px-2 font-medium text-[var(--app-foreground)]">
+                Bitcoin Holdings
+              </th>
+              <th className="text-right py-3 px-2 font-medium text-[var(--app-foreground)]">
+                Bitcoin Price
+              </th>
+              <th className="text-right py-3 px-2 font-medium text-[var(--app-foreground)]">
+                Portfolio Value
+              </th>
+              <th className="text-right py-3 px-2 font-medium text-[var(--app-foreground)]">
+                Annual Budget
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {tableData.map((row, index) => (
+              <tr
+                key={index}
+                className={`border-b border-[var(--app-card-border)] hover:bg-[var(--app-card-bg)] transition-colors ${
+                  row.isRetired
+                    ? "bg-red-50 dark:bg-red-900/10"
+                    : "bg-orange-50 dark:bg-orange-900/10"
+                }`}
+              >
+                <td className="py-3 px-2 font-medium text-[var(--app-foreground)]">
+                  {row.age}
+                </td>
+                <td className="py-3 px-2">
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      row.isRetired
+                        ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                        : "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400"
+                    }`}
+                  >
+                    {row.isRetired ? "🏖️ Retired" : "💼 Working"}
+                  </span>
+                </td>
+                <td className="py-3 px-2 text-right font-mono text-[var(--app-foreground)]">
+                  ₿{row.totalBitcoin.toFixed(6)}
+                </td>
+                <td className="py-3 px-2 text-right font-mono text-[var(--app-foreground)]">
+                  ${row.bitcoinPrice.toLocaleString()}
+                </td>
+                <td className="py-3 px-2 text-right font-mono text-[var(--app-foreground)] font-semibold">
+                  ${row.totalFiatValue.toLocaleString()}
+                </td>
+                <td className="py-3 px-2 text-right font-mono text-[var(--app-foreground-muted)]">
+                  ${row.annualBudgetNeeded.toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile summary cards for smaller screens */}
+      <div className="block sm:hidden mt-4 space-y-3">
+        <h4 className="font-medium text-[var(--app-foreground)] mb-3">
+          Summary by Decade
+        </h4>
+        {tableData
+          .filter(
+            (_, index) =>
+              index % 10 === 0 ||
+              tableData[index]?.age === calculationResults.retirementAge,
+          )
+          .map((row, index) => (
+            <div
+              key={index}
+              className={`p-3 rounded-lg border border-[var(--app-card-border)] ${
+                row.isRetired
+                  ? "bg-red-50 dark:bg-red-900/10"
+                  : "bg-orange-50 dark:bg-orange-900/10"
+              }`}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium text-[var(--app-foreground)]">
+                  Age {row.age}
+                </span>
+                <span
+                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    row.isRetired
+                      ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                      : "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400"
+                  }`}
+                >
+                  {row.isRetired ? "🏖️ Retired" : "💼 Working"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-[var(--app-foreground-muted)]">
+                    Bitcoin:
+                  </span>
+                  <div className="font-mono text-[var(--app-foreground)]">
+                    ₿{row.totalBitcoin.toFixed(4)}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[var(--app-foreground-muted)]">
+                    BTC Price:
+                  </span>
+                  <div className="font-mono text-[var(--app-foreground)]">
+                    ${row.bitcoinPrice.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[var(--app-foreground-muted)]">
+                    Portfolio:
+                  </span>
+                  <div className="font-mono text-[var(--app-foreground)] font-semibold">
+                    ${row.totalFiatValue.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[var(--app-foreground-muted)]">
+                    Budget:
+                  </span>
+                  <div className="font-mono text-[var(--app-foreground-muted)]">
+                    ${row.annualBudgetNeeded.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+      </div>
+
+      {/* Legend */}
+      <div className="mt-4 flex flex-wrap gap-4 text-xs text-[var(--app-foreground-muted)]">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-orange-400"></div>
+          <span>Accumulation Phase</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-400"></div>
+          <span>Retirement Phase</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function BitcoinCalculator() {
   const [currentAge, setCurrentAge] = useState("30");
   const [lifeExpectancy, setLifeExpectancy] = useState("86");
@@ -929,24 +1129,18 @@ export function BitcoinCalculator() {
             retirementIncome={parseFloat(retirementIncome) || 120000}
           />
         ) : (
-          <div className="bg-[var(--app-gray)] rounded-lg p-4 h-64 flex items-center justify-center">
-            <div className="text-center text-[var(--app-foreground-muted)]">
-              <Icon
-                name="table"
-                size="lg"
-                className="mx-auto mb-2 text-orange-500"
-              />
-              <p className="text-sm">Retirement Planning Table</p>
-              <p className="text-xs mt-1">
-                Detailed year-by-year breakdown coming next
-              </p>
-            </div>
-          </div>
+          <BitcoinTable
+            currentAge={parseInt(currentAge) || 30}
+            lifeExpectancy={parseInt(lifeExpectancy) || 86}
+            initialBitcoin={parseFloat(bitcoinHolding) || 0}
+            annualBuyAmount={parseFloat(annualBuy) || 0}
+            currentPrice={parseFloat(currentPrice)}
+            priceGrowth={parseFloat(priceGrowth) || 20}
+            inflation={parseFloat(inflation) || 2}
+            retirementIncome={parseFloat(retirementIncome) || 120000}
+          />
         )}
       </Card>
-
-      {/* Optional Transaction Card */}
-      <BitcoinTransactionCard />
     </div>
   );
 }

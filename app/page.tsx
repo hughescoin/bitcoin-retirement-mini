@@ -74,7 +74,7 @@ export default function App() {
         <header className="flex justify-between items-center mb-3 h-11">
           <div>
             <div className="flex items-center space-x-2">
-              <Wallet className="z-10">
+              {/* <Wallet className="z-10">
                 <ConnectWallet>
                   <Name className="text-inherit" />
                 </ConnectWallet>
@@ -87,7 +87,7 @@ export default function App() {
                   </Identity>
                   <WalletDropdownDisconnect />
                 </WalletDropdown>
-              </Wallet>
+              </Wallet> */}
             </div>
           </div>
           <div>{saveFrameButton}</div>
