@@ -6,6 +6,8 @@ import {
   useOpenUrl,
 } from "@coinbase/onchainkit/minikit";
 
+import { WalletAdvancedDefault } from "@coinbase/onchainkit/wallet";
+
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Button } from "./components/DemoComponents";
 import { Icon } from "./components/DemoComponents";
@@ -62,6 +64,7 @@ export default function App() {
         <header className="flex justify-between items-center mb-3 h-11">
           <div>
             <div className="flex items-center space-x-2">
+              <WalletAdvancedDefault />
               {/* <Wallet className="z-10">
                 <ConnectWallet>
                   <Name className="text-inherit" />
